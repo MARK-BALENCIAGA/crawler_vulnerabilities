@@ -1,3 +1,6 @@
 __pycache__
 database
 .vscode
+request.sql
+.gitignore
+ToDo
