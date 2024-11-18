@@ -751,17 +751,6 @@ class Searcher:
             url = self.getUrlName(urlid)  # Получаем текстовое значение URL
             print(f"{index}. {url}")
 
-        # Найти URL с максимальным и минимальным значением M1
-        max_M1_url = max(m1Scores, key=m1Scores.get)
-        min_M1_url = min(m1Scores, key=m1Scores.get)
-        
-        # Найти URL с максимальным значением M3
-        max_M3_url = rankedScoresList[0][0]  # Первый элемент в отсортированном списке имеет наибольшее значение M3
-
-        # Возвращаем rowid для max_M1_url, min_M1_url и max_M3_url
-        return max_M1_url, min_M1_url, max_M3_url
-
-
 
     # Извлекает список слов (wordList) для указанного URL на основе таблицы wordLocation
     def getWordListForUrl(self, urlid):
@@ -790,6 +779,30 @@ class Searcher:
 
         return wordList
         
+def prompt_and_save_search(dbName):
+    """
+    Предлагает пользователю ввести поисковой запрос и сохраняет его в таблицу search.
+    """
+    mySearcher = Searcher(dbName)
+    
+
+    conn = sqlite3.connect(dbName)
+    cursor = conn.cursor()
+
+    # Запрос ввода поискового запроса у пользователя
+    search_query = input("Введите поисковой запрос: ")
+
+    # Сохранение поискового запроса в таблицу search
+    cursor.execute('''
+    INSERT INTO search (searchText)
+    VALUES (?)
+    ''', (search_query,))
+
+    conn.commit()
+    conn.close()
+    
+    mySearcher.getSortedList(search_query)
+
 
 
 if __name__ == "__main__":
@@ -815,20 +828,14 @@ if __name__ == "__main__":
     crawler = Crawler(dbName)
 
     urlList = ["https://роботека.рф/robot"]
-
-    # urlList = ["'; DROP TABLE linkBetweenURL; --"]
     
-    crawler.clear_db()
-    crawler.initDB()
-    crawler.crawl(urlList, maxDepth=1)
+    # crawler.clear_db()
+    # crawler.initDB()
+    # crawler.crawl(urlList, maxDepth=1)
 
-    mySearcher = Searcher(dbName)
+    prompt_and_save_search(dbName)
 
-    # serach = "example domain"
-
-    serach = "искусственный интеллект"
-
-    max_M1_url, min_M1_url, max_M3_url = mySearcher.getSortedList(serach)
+    
 
     logging.info("Работа программы успешно завершена!")
 
