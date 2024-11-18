@@ -57,6 +57,23 @@ def create_database(dbName):
         FOREIGN KEY (fk_linkId) REFERENCES linkBetweenURL(rowId)
     );
     ''')
+    
+    # Создание таблицы URLText
+    cur.execute('''
+    CREATE TABLE IF NOT EXISTS URLText (
+        fk_URLId INTEGER NOT NULL,
+        url_text TEXT,
+        FOREIGN KEY (fk_URLId) REFERENCES URLList(rowId)
+    )
+    ''')
+
+    # Создание таблицы search
+    cur.execute('''
+    CREATE TABLE IF NOT EXISTS search (
+        rowId INTEGER PRIMARY KEY AUTOINCREMENT,
+        searchText TEXT NOT NULL
+    )
+    ''')
 
     # Подтверждаем изменения и закрываем соединение
     conn.commit()

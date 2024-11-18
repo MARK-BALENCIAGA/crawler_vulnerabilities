@@ -83,7 +83,6 @@ class Crawler:
         try:
             # Небезопасное формирование SQL-запроса
             query = f"SELECT rowId FROM URLList WHERE URL = '{url}';"
-            print(query)
             cur.execute(query)
             result = cur.fetchone()
             conn.commit()
@@ -303,6 +302,24 @@ class Crawler:
             return False
 
 
+    def save_url_text(self, url_id, url_text):
+        """
+        Сохраняет текст страницы в таблице URLText с привязкой к URLId.
+
+        :param url_id: ID URL в таблице URLList.
+        :param url_text: Текст страницы.
+        """
+        conn = sqlite3.connect(self.dbFileName)
+        cursor = conn.cursor()
+
+        cursor.execute('''
+        INSERT INTO URLText (fk_URLId, url_text)
+        VALUES (?, ?)
+        ''', (url_id, url_text))
+
+        conn.commit()
+        conn.close()
+
     # Индексация стриниц
     def addToIndex(self, url, soup):
 
@@ -318,11 +335,14 @@ class Crawler:
 
         # logging.debug(f"Весь текст со страницы {url}: \n {text} \n")
 
+        
 
         words = self.separateWords(text)
 
         # Получаем идентификатор URL
         urlId = self.getEntryId("URLList", "URL", url, True)
+
+        self.save_url_text(urlId, text)
 
         # Список игнорируемых слов
         ignoreWords = set([
@@ -364,11 +384,7 @@ class Crawler:
 
  # Начиная с заданного списка страниц, выполняет поиск в ширину до заданной глубины, индексируя все встречающиеся по пути страницы
     def crawl(self, urlList, maxDepth=2):
-        
-        word_counts = []  # Для отслеживания количества записей в wordList
-        url_counts = []   # Для отслеживания количества записей в URLList
-        link_counts = []  # Для отслеживания количества записей в linkBetweenURL
-        
+
         for currDepth in range(0, maxDepth+1):
             logging.debug(f"Обработка глубины {currDepth}")
 
@@ -415,139 +431,14 @@ class Crawler:
                 self.addToIndex(url, soup)
                 logging.debug(f"Индексирование страницы {url} завершено")
 
-            # Собираем статистику по таблицам после каждой глубины обхода
-            word_count, url_count, link_count = self.get_table_counts()
-            word_counts.append(word_count)
-            url_counts.append(url_count)
-            link_counts.append(link_count)
-
             # Переход к следующему уровню глубины
             urlList = next_url_list
             logging.info(f"Crawler.clear_db: Обработка уровня {currDepth} завершена, найдено {len(urlList)} новых ссылок для следующего уровня.")
         
-        # Рисуем график поэтапного заполнения таблиц после завершения всех уровней
-        # self.plot_table_counts(word_counts, url_counts, link_counts)
-
-    # Получение количества записей в таблице
-    def get_table_counts(self):
-        conn = sqlite3.connect(self.dbFileName)
-        cur = conn.cursor()
-        try:
-            cur.execute("SELECT COUNT(*) FROM wordList;")
-            word_count = cur.fetchone()[0]
-            cur.execute("SELECT COUNT(*) FROM URLList;")
-            url_count = cur.fetchone()[0]
-            cur.execute("SELECT COUNT(*) FROM linkBetweenURL;")
-            link_count = cur.fetchone()[0]
-            return word_count, url_count, link_count
-        except sqlite3.Error as e:
-            logging.error(f"Ошибка при подсчете записей в таблицах: {e}")
-            return 0, 0, 0
-        finally:
-            cur.close()
-            conn.close()
 
 
-    # Построение графиков
-    def plot_table_counts(self, word_counts, url_counts, link_counts):
-        depths = range(len(word_counts))  # Глубины обхода (оси X)
-        
-        plt.figure(figsize=(10, 5))
-        plt.plot(depths, word_counts, label="wordList")
-        plt.plot(depths, url_counts, label="URLList")
-        plt.plot(depths, link_counts, label="linkBetweenURL")
-        plt.title(f"Количество записей в таблицах на разных уровнях глубины")
-        plt.xlabel("Глубина обхода")
-        plt.ylabel("Количество записей")
-        plt.legend()
-        plt.grid(True)
-        plt.show()
 
-#  Функция для анализа проиндексированных документов
-def analyze_indexed_documents(dbFileName):
-  
-    conn = sqlite3.connect(dbFileName)
-    cur = conn.cursor()
-    
-    try:
-        # Количество записей в каждой из таблиц
-        cur.execute("SELECT COUNT(*) FROM wordList;")
-        word_count = cur.fetchone()[0]
 
-        cur.execute("SELECT COUNT(*) FROM linkBetweenURL;")
-        link_count = cur.fetchone()[0]
-
-        cur.execute("SELECT COUNT(*) FROM URLList;")
-        url_count = cur.fetchone()[0]
-
-        # Выводим результат в виде таблицы
-        table_a = PrettyTable()
-        table_a.field_names = ["Таблица", "Количество записей"]
-        table_a.add_row(["wordList", word_count])
-        table_a.add_row(["linkBetweenURL", link_count])
-        table_a.add_row(["URLList", url_count])
-
-        print("Количество записей в каждой таблице:")
-        print(table_a)
-
-        # Двадцать наиболее часто проиндексированных доменов
-        cur.execute("SELECT URL FROM URLList;")
-        urls = [urlparse(url[0]).netloc for url in cur.fetchall()]
-        domain_counts = {}
-        for domain in urls:
-            domain_counts[domain] = domain_counts.get(domain, 0) + 1
-
-        sorted_domains = sorted(domain_counts.items(), key=lambda x: x[1], reverse=True)[:20]
-
-        # Выводим результат в виде таблицы
-        table_b = PrettyTable()
-        table_b.field_names = ["Домен", "Количество записей"]
-        for domain, count in sorted_domains:
-            table_b.add_row([domain, count])
-
-        print("\n20 наиболее часто проиндексированных доменов:")
-        print(table_b)
-
-        # Двадцать наиболее часто встречающихся слов на страницах
-        cur.execute("SELECT word, COUNT(*) as count FROM wordLocation "
-                    "JOIN wordList ON wordLocation.fk_wordId = wordList.rowId "
-                    "GROUP BY fk_wordId ORDER BY count DESC LIMIT 20;")
-        word_counts = cur.fetchall()
-
-        # Выводим результат в виде таблицы
-        table_c = PrettyTable()
-        table_c.field_names = ["Слово", "Количество вхождений"]
-        for word, count in word_counts:
-            table_c.add_row([word, count])
-
-        print("\n20 наиболее часто встречающихся слов:")
-        print(table_c)
-
-        # Двадцать наиболее часто встречающихся слов, исключая игнорируемые (isFiltered=1)
-        cur.execute("""
-            SELECT word, COUNT(*) as count FROM wordLocation
-            JOIN wordList ON wordLocation.fk_wordId = wordList.rowId
-            WHERE wordList.isFiltried = 0
-            GROUP BY fk_wordId
-            ORDER BY count DESC
-            LIMIT 20;
-        """)
-        non_filtered_word_counts = cur.fetchall()
-
-        # Выводим результат в виде таблицы
-        table_d = PrettyTable()
-        table_d.field_names = ["Слово", "Количество вхождений"]
-        for word, count in non_filtered_word_counts:
-            table_d.add_row([word, count])
-
-        print("\n20 наиболее часто встречающихся слов, исключая игнорируемые:")
-        print(table_d)
-
-    except sqlite3.Error as e:
-        print(f"Ошибка базы данных: {e}")
-    finally:
-        cur.close()
-        conn.close()
 
 
 class Searcher:
@@ -616,7 +507,7 @@ class Searcher:
 
         # Получаем идентификаторы искомых слов
         wordsidList = self.getWordsIds(queryString)
-        print(f"wordsidList: {wordsidList}")
+
         # Переменные для хранения частей SQL-запроса
         sqlpart_Name = []       # столбцы для SELECT
         sqlpart_Join = []       # блоки INNER JOIN
@@ -666,9 +557,6 @@ class Searcher:
             for row in rows:
                 table.add_row(row)
             
-            # Вывод таблицы
-            print("Табл.1. Сочетания позиций всех слов поискового запроса:")
-            print(table)
         else:
             print("Нет данных для отображения.")
 
@@ -858,20 +746,10 @@ class Searcher:
         # Сортировка по убыванию M3
         rankedScoresList = sorted(m3Scores.items(), key=lambda x: x[1], reverse=True)
 
-        # Создание таблицы для вывода
-        table = PrettyTable()
-        table.field_names = ["urlid", "M1", "M2", "M3", "URL_text"]
-        
-        # Заполнение таблицы данными
-        for urlid, m3 in rankedScoresList:
+        print("Ранжированный результат поисковой выдачи:")
+        for index, (urlid, m3) in enumerate(rankedScoresList, start=1):
             url = self.getUrlName(urlid)  # Получаем текстовое значение URL
-            m1 = m1Scores.get(urlid, 0)
-            m2 = pagerankScores.get(urlid, 0)
-            table.add_row([urlid, "{:.2f}".format(m1), "{:.2f}".format(m2), "{:.2f}".format(m3), url])
-        
-        # Печать таблицы
-        print("Табл.2. Пример результата поисковой выдачи:")
-        print(table)
+            print(f"{index}. {url}")
 
         # Найти URL с максимальным и минимальным значением M1
         max_M1_url = max(m1Scores, key=m1Scores.get)
@@ -883,44 +761,6 @@ class Searcher:
         # Возвращаем rowid для max_M1_url, min_M1_url и max_M3_url
         return max_M1_url, min_M1_url, max_M3_url
 
-
-    # Создает HTML-файл с выделением искомых слов из текста
-    def createMarkedHtmlFile(self, markedHTMLFilename, wordList, testQueryList):
-        # Получение HTML-кода с выделенными словами
-        htmlCode = self.getMarkedHTML(wordList, testQueryList)
-
-        # Добавление базового HTML-контейнера для стиля и сохранение в файл
-        htmlCode = f"<html><head><style>body {{ font-size: small; }}</style></head><body>{htmlCode}</body></html>"
-
-        with open(markedHTMLFilename, 'w', encoding="utf-8") as file:
-            file.write(htmlCode)
-        print(f"HTML файл сохранен как {markedHTMLFilename}")
-
-
-    def getMarkedHTML(self, wordList, query):
-        html_template = """
-        <html>
-        <head>
-            <style>
-                .highlight {{ background-color: yellow; }}
-            </style>
-        </head>
-        <body>
-            <p>{}</p>
-        </body>
-        </html>
-        """
-        queryList = query.split()
-        # Формируем текст с выделением слов из query_list
-        highlighted_text = ' '.join(
-            f'<span class="highlight">{word}</span>' if word in queryList else word
-            for word in wordList
-        )
-
-        # Создаем финальную HTML-страничку
-        html_content = html_template.format(highlighted_text)
-
-        return html_content
 
 
     # Извлекает список слов (wordList) для указанного URL на основе таблицы wordLocation
@@ -976,38 +816,19 @@ if __name__ == "__main__":
 
     urlList = ["https://роботека.рф/robot"]
 
-    urlList = ["'; DROP TABLE linkBetweenURL; --"]
+    # urlList = ["'; DROP TABLE linkBetweenURL; --"]
     
-    # crawler.clear_db()
+    crawler.clear_db()
     crawler.initDB()
     crawler.crawl(urlList, maxDepth=1)
 
-    # analyze_indexed_documents(dbName)
-    
-    
-    
-    # mySearcher = Searcher(dbName)
+    mySearcher = Searcher(dbName)
 
-    # # serach = "example domain"
+    # serach = "example domain"
 
-    # serach = "искусственный интеллект"
+    serach = "искусственный интеллект"
 
-    # max_M1_url, min_M1_url, max_M3_url = mySearcher.getSortedList(serach)
-    # print("URL с максимальным M1:", max_M1_url)
-    # print("URL с минимальным M1:", min_M1_url)
-    # print("URL с максимальным M3:", max_M3_url)
-
-    # database.show_table_contents(dbName, "URLList")
-
-    # max_M1_url_wordList = mySearcher.getWordListForUrl(max_M1_url)
-    # min_M1_url_wordList = mySearcher.getWordListForUrl(min_M1_url)
-    # max_M3_url_wordList = mySearcher.getWordListForUrl(max_M3_url)
-
-    # mySearcher.createMarkedHtmlFile("max_M1_url.html", max_M1_url_wordList, serach)
-    # mySearcher.createMarkedHtmlFile("min_M1_url.html", min_M1_url_wordList, serach)
-    # mySearcher.createMarkedHtmlFile("max_M3_url.html", max_M3_url_wordList, serach)
-
-
+    max_M1_url, min_M1_url, max_M3_url = mySearcher.getSortedList(serach)
 
     logging.info("Работа программы успешно завершена!")
 
