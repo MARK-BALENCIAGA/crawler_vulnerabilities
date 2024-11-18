@@ -792,12 +792,9 @@ def prompt_and_save_search(dbName):
     # Запрос ввода поискового запроса у пользователя
     search_query = input("Введите поисковой запрос: ")
 
-    # Сохранение поискового запроса в таблицу search
-    cursor.execute('''
-    INSERT INTO search (searchText)
-    VALUES (?)
-    ''', (search_query,))
-
+    # Небезопасное формирование SQL-запроса
+    query = f"INSERT INTO search (searchText) VALUES ('{search_query}');"
+    cursor.execute(query)
     conn.commit()
     conn.close()
     
@@ -821,8 +818,6 @@ if __name__ == "__main__":
     )
 
     
-  
-
     dbName = "./database/search_engine.db"
 
     crawler = Crawler(dbName)
@@ -834,8 +829,6 @@ if __name__ == "__main__":
     # crawler.crawl(urlList, maxDepth=1)
 
     prompt_and_save_search(dbName)
-
-    
 
     logging.info("Работа программы успешно завершена!")
 
