@@ -15,6 +15,7 @@ import os
 import argparse
 import database
 from statistics import mean
+from datetime import datetime
 
 # Функция для получения уровня логирования из аргументов командной строки
 def parse_args():
@@ -781,24 +782,168 @@ class Searcher:
         
 def prompt_and_save_search(dbName):
     """
-    Предлагает пользователю ввести поисковой запрос и сохраняет его в таблицу search.
+    Предлагает пользователю ввести поисковой запрос и сохраняет его в таблицу search с текущим временем и датой.
     """
-    mySearcher = Searcher(dbName)
-    
-
     conn = sqlite3.connect(dbName)
     cursor = conn.cursor()
+    mySearcher = Searcher(dbName)
+    try:
+        # Запрос ввода поискового запроса у пользователя
+        search_query = input("Введите поисковой запрос: ")
+        
+        # Получение текущего времени и даты
+        current_time = datetime.now().strftime("%H:%M %d-%m-%Y") 
+        # Вставка запроса и времени в таблицу search
+        cursor.execute("INSERT INTO search (searchText, date) VALUES (?, ?)", (search_query, current_time))
+        conn.commit()
+        mySearcher.getSortedList(search_query)
+    except sqlite3.Error as e:
+        print(f"Ошибка базы данных при сохранении запроса: {e}")
+    finally:
+        conn.close()
 
-    # Запрос ввода поискового запроса у пользователя
-    search_query = input("Введите поисковой запрос: ")
 
-    # Небезопасное формирование SQL-запроса
-    query = f"INSERT INTO search (searchText) VALUES ('{search_query}');"
-    cursor.execute(query)
-    conn.commit()
-    conn.close()
+def search_by_date_or_query(dbName):
+    """
+    Выполняет поиск в таблице search по дате или тексту запроса.
     
-    mySearcher.getSortedList(search_query)
+    :param dbName: Имя базы данных.
+    """
+    conn = sqlite3.connect(dbName, isolation_level=None)
+    cursor = conn.cursor()
+    try:
+        print("\nПоиск по дате или запросу:")
+        print("1. Поиск по дате")
+        print("2. Поиск по тексту запроса")
+        
+        # Получаем выбор пользователя
+        search_type = input("Введите 1 для поиска по дате или 2 для поиска по тексту: ").strip()
+        
+        if search_type == "1":
+            # Поиск по дате
+            search_date = input("Введите дату (в формате ДД-ММ-ГГГГ): ").strip()
+            query = f"SELECT rowId, searchText, date FROM search WHERE date LIKE \"%{search_date}%\""
+            print(query)
+            cursor.executescript(query)
+        elif search_type == "2":
+            # Поиск по тексту
+            search_query = input("Введите текст поиска: ").strip()
+            query = f"SELECT rowId, searchText, date FROM search WHERE searchText LIKE \"%{search_query}%\""
+            print(query)
+            cursor.executescript(query)
+        else:
+            print("Ошибка: введите 1 или 2 для выбора типа поиска.")
+            return
+
+        # Вывод результатов
+        rows = cursor.fetchall()
+        if rows:
+            print("\nРезультаты поиска:")
+            for row in rows:
+                print(f"ID: {row[0]}, Запрос: {row[1]}, Дата: {row[2]}")
+        else:
+            print("Ничего не найдено.")
+    except sqlite3.Error as e:
+        print(f"Ошибка базы данных: {e}")
+    finally:
+        conn.close()
+
+
+
+
+def show_full_history(dbName):
+    """
+    Выводит всю историю поиска из таблицы search.
+    
+    :param dbName: Имя базы данных.
+    """
+    conn = sqlite3.connect(dbName)
+    cursor = conn.cursor()
+    try:
+        cursor.execute("SELECT rowId, searchText, date FROM search")
+        rows = cursor.fetchall()
+        print("\nВся история поиска:")
+        if rows:
+            for row in rows:
+                print(f"ID: {row[0]}, Запрос: {row[1]}, Дата: {row[2]}")
+        else:
+            print("История запросов пуста.")
+    except sqlite3.Error as e:
+        print(f"Ошибка базы данных: {e}")
+    finally:
+        conn.close()
+
+def history_submenu(dbName):
+    """
+    Подменю для работы с историей запросов.
+    
+    :param dbName: Имя базы данных.
+    """
+    while True:
+        print("\nИстория запросов:")
+        print("1. Вся история поиска")
+        print("2. Поиск по дате или запросу")
+        print("0. Назад в главное меню")
+
+        try:
+            choice = int(input("Введите номер пункта: "))
+        except ValueError:
+            print("Ошибка: введите корректный номер.")
+            continue
+
+        if choice == 1:
+            # Показать всю историю поиска
+            show_full_history(dbName)
+        elif choice == 2:
+            # Поиск по дате или запросу
+            search_by_date_or_query(dbName)
+        elif choice == 0:
+            # Возврат в главное меню
+            break
+        else:
+            print("Ошибка: выберите пункт из меню.")
+
+
+def main_menu():
+    """
+    Функция отображает меню и выполняет выбранный пользователем пункт.
+    
+    :param crawler: Объект класса Crawler для выполнения сканирования.
+    :param dbName: Имя базы данных.
+    """
+    dbName = "./database/search_engine.db"
+
+    while True:
+        print("\nМеню:")
+        print("1. Поисковой запрос")
+        print("2. История запросов")
+        print("3. Выполнить сканирование URL")
+        print("0. Выход")
+
+        try:
+            choice = int(input("Введите номер пункта: "))
+        except ValueError:
+            print("Ошибка: введите корректный номер.")
+            continue
+
+        if choice == 1:
+            # Поисковой запрос
+            prompt_and_save_search(dbName)
+        elif choice == 2:
+            # История запросов (переход в подменю)
+            history_submenu(dbName)
+        elif choice == 3:
+            # Выполнить сканирование URL
+            urlList = ["https://роботека.рф/robot"]  # Замените на нужный список URL
+            crawler = Crawler(dbName)
+            crawler.initDB()
+            crawler.crawl(urlList, maxDepth=1)
+            print("Сканирование завершено.")
+        elif choice == 0:
+            print("Выход из программы.")
+            break
+        else:
+            print("Ошибка: выберите пункт из меню.")
 
 
 
@@ -816,19 +961,12 @@ if __name__ == "__main__":
         format='%(asctime)s - %(levelname)s - %(message)s',
         handlers=[logging.StreamHandler()]
     )
-
-    
-    dbName = "./database/search_engine.db"
-
-    crawler = Crawler(dbName)
-
-    urlList = ["https://роботека.рф/robot"]
     
     # crawler.clear_db()
-    # crawler.initDB()
-    # crawler.crawl(urlList, maxDepth=1)
 
-    prompt_and_save_search(dbName)
+    # prompt_and_save_search(dbName)
 
+    main_menu()
+    
     logging.info("Работа программы успешно завершена!")
 

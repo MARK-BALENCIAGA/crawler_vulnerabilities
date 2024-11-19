@@ -71,7 +71,8 @@ def create_database(dbName):
     cur.execute('''
     CREATE TABLE IF NOT EXISTS search (
         rowId INTEGER PRIMARY KEY AUTOINCREMENT,
-        searchText TEXT NOT NULL
+        searchText TEXT NOT NULL,
+        date TEXT NOT NULL
     )
     ''')
 
