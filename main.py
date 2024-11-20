@@ -312,9 +312,7 @@ class Crawler:
         """
         conn = sqlite3.connect(self.dbFileName, isolation_level=None)
         cursor = conn.cursor()
-        query = f"INSERT INTO URLText (fk_URLId, url_text) VALUES (\"{url_id}\", \"{url_text}\")"
-        print(f"save_url_text: {query}")
-        cursor.executescript(query)
+        query = f"INSERT INTO URLText (fk_URLId, url_text) VALUES (\"{url_id}\", \"{url_text}\")"        cursor.executescript(query)
 
         conn.commit()
         conn.close()
@@ -519,6 +517,8 @@ class Searcher:
 
         if wordsidList == None:
             return None, None
+        
+        # print(f"getMatchRows: wordsidList: {wordsidList}")
 
         # Переменные для хранения частей SQL-запроса
         sqlpart_Name = []       # столбцы для SELECT
@@ -546,7 +546,7 @@ class Searcher:
         sqlFullQuery += " ".join(sqlpart_Join) + "\n"
         sqlFullQuery += " ".join(sqlpart_Condition)
 
-        logging.debug(f"Сформированный SQL-запрос: {sqlFullQuery}")
+        # print(f"Сформированный SQL-запрос: {sqlFullQuery}")
 
         # Выполнение запроса и извлечение результата
         try:
@@ -579,7 +579,7 @@ class Searcher:
     def normalizeScores(self, scores, smallIsBetter=0):
         resultDict = dict()  # словарь для нормализованных значений
         vsmall = 0.00001     # малая величина, чтобы избежать деления на ноль
-
+        # print(f"scores:{scores}")
         minscore = min(scores.values())  # минимальное значение рангов
         maxscore = max(scores.values())  # максимальное значение рангов
         score_range = maxscore - minscore  # диапазон значений
@@ -604,9 +604,7 @@ class Searcher:
 
     #  Подсчитывает частоту комбинаций искомых слов для каждой страницы (urlId) и возвращает нормализованные ранги
     def frequencyScore(self, rowsLoc):
-        countsDict = {}  # Словарь для подсчета комбинаций слов на каждой странице
-        logging.debug(f"frequencyScore: rowsLoc: {rowsLoc}")
-        # Инициализация словаря: добавляем urlId с начальным значением 0
+        countsDict = {}  # Словарь для подсчета комбинаций слов на каждой странице        # Инициализация словаря: добавляем urlId с начальным значением 0
         for row in rowsLoc:
             urlId = row[0]
             countsDict.setdefault(urlId, 0)
@@ -837,13 +835,13 @@ def search_by_date_or_query(dbName):
             # Поиск по дате
             search_date = input("Введите дату (в формате ДД-ММ-ГГГГ): ").strip()
             query = f"SELECT rowId, searchText, date FROM search WHERE date LIKE \"%{search_date}%\""
-            print(query)
+            # print(query)
             cursor.executescript(query)
         elif search_type == "2":
             # Поиск по тексту
             search_query = input("Введите текст поиска: ").strip()
             query = f"SELECT rowId, searchText, date FROM search WHERE searchText LIKE \"%{search_query}%\""
-            print(query)
+            # print(query)
             cursor.executescript(query)
         else:
             print("Ошибка: введите 1 или 2 для выбора типа поиска.")
@@ -950,7 +948,7 @@ def main_menu():
             # Выполнить сканирование URL
             urlList = ["https://роботека.рф/robot"]
             crawler = Crawler(dbName)
-            crawler.clear_db()
+            # crawler.clear_db()
             crawler.initDB()
             crawler.crawl(urlList, maxDepth=1)
             print("Сканирование завершено.")
