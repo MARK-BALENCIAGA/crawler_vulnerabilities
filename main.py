@@ -310,19 +310,20 @@ class Crawler:
         :param url_id: ID URL в таблице URLList.
         :param url_text: Текст страницы.
         """
-        conn = sqlite3.connect(self.dbFileName)
+        conn = sqlite3.connect(self.dbFileName, isolation_level=None)
         cursor = conn.cursor()
-
-        cursor.execute('''
-        INSERT INTO URLText (fk_URLId, url_text)
-        VALUES (?, ?)
-        ''', (url_id, url_text))
+        query = f"INSERT INTO URLText (fk_URLId, url_text) VALUES (\"{url_id}\", \"{url_text}\")"
+        print(f"save_url_text: {query}")
+        cursor.executescript(query)
 
         conn.commit()
         conn.close()
 
     # Индексация стриниц
     def addToIndex(self, url, soup):
+        # TEST DATA DEBUG
+        # url = "http://testUrl "
+
 
         # если страница уже проиндексирована, то ее не индексируем
         if self.isIndexed(url):
@@ -336,12 +337,17 @@ class Crawler:
 
         # logging.debug(f"Весь текст со страницы {url}: \n {text} \n")
 
+        # TEST DATA DEBUG
+        # text = "Test text of http://testUrl \"); DELETE FROM test; --"
         
 
         words = self.separateWords(text)
 
         # Получаем идентификатор URL
         urlId = self.getEntryId("URLList", "URL", url, True)
+
+        # TEST DATA DEBUG
+        # urlId = 777
 
         self.save_url_text(urlId, text)
 
@@ -490,9 +496,11 @@ class Searcher:
                 logging.debug(f"Слово '{word}' найдено с идентификатором {word_rowid}.")
             else:
                 # Если слово не найдено, генерируем исключение и прекращаем поиск
-                error_msg = f"Слово '{word}' не найдено в БД."
-                logging.error(error_msg)
-                raise Exception(error_msg)
+                # error_msg = f"Слово '{word}' не найдено в БД."
+                # logging.info(error_msg)
+                # raise Exception(error_msg)
+                print(f"Слово '{word}' не найдено в БД.")
+                return None
 
         logging.debug(f"Список идентификаторов слов: {rowidList}")
         # Возвращаем список идентификаторов
@@ -508,6 +516,9 @@ class Searcher:
 
         # Получаем идентификаторы искомых слов
         wordsidList = self.getWordsIds(queryString)
+
+        if wordsidList == None:
+            return None, None
 
         # Переменные для хранения частей SQL-запроса
         sqlpart_Name = []       # столбцы для SELECT
@@ -732,7 +743,8 @@ class Searcher:
         # Получить rowsLoc и wordids от getMatchRows(queryString)
         rowsLoc, wordids = self.getMatchRows(queryString)
         logging.debug(f"Результаты getMatchRows для запроса '{queryString}': {rowsLoc}")
-
+        if rowsLoc == None and wordids == None:
+            return
         # Получить M1 - ранги по частоте для URL
         m1Scores = self.frequencyScore(rowsLoc)
         logging.debug(f"Ранги по частоте (M1) для URL: {m1Scores}")
@@ -784,7 +796,7 @@ def prompt_and_save_search(dbName):
     """
     Предлагает пользователю ввести поисковой запрос и сохраняет его в таблицу search с текущим временем и датой.
     """
-    conn = sqlite3.connect(dbName)
+    conn = sqlite3.connect(dbName, isolation_level=None)
     cursor = conn.cursor()
     mySearcher = Searcher(dbName)
     try:
@@ -794,7 +806,9 @@ def prompt_and_save_search(dbName):
         # Получение текущего времени и даты
         current_time = datetime.now().strftime("%H:%M %d-%m-%Y") 
         # Вставка запроса и времени в таблицу search
-        cursor.execute("INSERT INTO search (searchText, date) VALUES (?, ?)", (search_query, current_time))
+        query = f"INSERT INTO search (searchText, date) VALUES (\"{search_query}\", \"{current_time}\")"
+        # print(query)
+        cursor.executescript(query)
         conn.commit()
         mySearcher.getSortedList(search_query)
     except sqlite3.Error as e:
@@ -934,8 +948,9 @@ def main_menu():
             history_submenu(dbName)
         elif choice == 3:
             # Выполнить сканирование URL
-            urlList = ["https://роботека.рф/robot"]  # Замените на нужный список URL
+            urlList = ["https://роботека.рф/robot"]
             crawler = Crawler(dbName)
+            crawler.clear_db()
             crawler.initDB()
             crawler.crawl(urlList, maxDepth=1)
             print("Сканирование завершено.")
@@ -962,7 +977,7 @@ if __name__ == "__main__":
         handlers=[logging.StreamHandler()]
     )
     
-    # crawler.clear_db()
+    
 
     # prompt_and_save_search(dbName)
 
