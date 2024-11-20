@@ -312,7 +312,8 @@ class Crawler:
         """
         conn = sqlite3.connect(self.dbFileName, isolation_level=None)
         cursor = conn.cursor()
-        query = f"INSERT INTO URLText (fk_URLId, url_text) VALUES (\"{url_id}\", \"{url_text}\")"        cursor.executescript(query)
+        query = f"INSERT INTO URLText (fk_URLId, url_text) VALUES (\"{url_id}\", \"{url_text}\")"        
+        cursor.executescript(query)
 
         conn.commit()
         conn.close()
