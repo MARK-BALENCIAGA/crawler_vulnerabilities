@@ -838,16 +838,19 @@ def search_by_date_or_query(dbName):
             query = f"SELECT rowId, searchText, date FROM search WHERE date LIKE \"%{search_date}%\""
             # print(query)
             cursor.executescript(query)
+            cursor.execute(query)
         elif search_type == "2":
             # Поиск по тексту
             search_query = input("Введите текст поиска: ").strip()
             query = f"SELECT rowId, searchText, date FROM search WHERE searchText LIKE \"%{search_query}%\""
             # print(query)
             cursor.executescript(query)
+            cursor.execute(query)
         else:
             print("Ошибка: введите 1 или 2 для выбора типа поиска.")
             return
 
+        
         # Вывод результатов
         rows = cursor.fetchall()
         if rows:
